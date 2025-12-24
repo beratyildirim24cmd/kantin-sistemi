@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kampüs Kantin Sistemi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f3f4f6; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .hidden { display: none !important; }
+        /* Özel Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 4px; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="loading" class="loading-overlay">
+        <div class="text-center">
+            <i class="fa-solid fa-burger fa-spin text-6xl text-orange-600 mb-4"></i>
+            <h2 class="text-xl font-bold">Kantin Yükleniyor...</h2>
+        </div>
+    </div>
+
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-500 to-red-600 p-4 hidden">
+        <div class="glass-panel p-8 rounded-2xl shadow-2xl w-full max-w-md text-center">
+            <div class="mb-6">
+                <i class="fa-solid fa-utensils text-5xl text-orange-600"></i>
+            </div>
+            <h1 class="text-3xl font-bold mb-2">Kantin Giriş</h1>
+            <p class="text-gray-500 mb-6">Lezzete ulaşmak için giriş yapın.</p>
+
+            <div class="text-left bg-orange-50 p-4 rounded-lg border border-orange-200 mb-6 h-32 overflow-y-auto text-xs">
+                <h3 class="font-bold mb-1">KVKK Aydınlatma Metni</h3>
+                <p>Bu uygulamayı kullanarak verilerinizin (Ad, Soyad, E-posta) sipariş takibi amacıyla işlenmesini kabul edersiniz. 5 yılın sonunda verileriniz otomatik silinir. Admin gerekli gördüğünde erişiminizi kısıtlayabilir.</p>
+            </div>
+            
+            <div class="flex items-center mb-6 justify-center">
+                <input type="checkbox" id="kvkk-check" class="w-5 h-5 text-orange-600 rounded focus:ring-orange-500 border-gray-300">
+                <label for="kvkk-check" class="ml-2 text-sm text-gray-700 cursor-pointer select-none">KVKK metnini okudum ve onaylıyorum.</label>
+            </div>
+
+            <button onclick="signInWithGoogle()" class="w-full bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold py-3 px-4 rounded-xl shadow transition duration-200 flex items-center justify-center gap-3">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6">
+                Google ile Giriş Yap
+            </button>
+        </div>
+    </div>
+
+    <div id="app-screen" class="hidden min-h-screen flex flex-col">
+        <nav class="bg-white shadow-md sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <i class="fa-solid fa-burger text-orange-600 text-2xl mr-2"></i>
+                        <span class="font-bold text-xl tracking-tight">KANTİN</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span id="user-name-display" class="text-sm font-semibold hidden md:block"></span>
+                        <button onclick="logout()" class="text-red-500 hover:text-red-700 font-medium text-sm">
+                            <i class="fa-solid fa-right-from-bracket"></i> Çıkış
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div id="admin-panel" class="hidden container mx-auto p-4 flex-1">
+            <h2 class="text-2xl font-bold mb-6 border-b pb-2 border-gray-300 flex items-center gap-2">
+                <i class="fa-solid fa-user-shield text-blue-600"></i> Yönetici Paneli
+            </h2>
+            
+            <div class="flex flex-wrap gap-4 mb-6">
+                <button onclick="switchAdminTab('orders')" class="flex-1 bg-white p-4 rounded-xl shadow hover:shadow-lg transition text-center border-l-4 border-blue-500">
+                    <i class="fa-solid fa-list-check text-2xl mb-2 text-blue-500"></i><br>Siparişler
+                </button>
+                <button onclick="switchAdminTab('products')" class="flex-1 bg-white p-4 rounded-xl shadow hover:shadow-lg transition text-center border-l-4 border-green-500">
+                    <i class="fa-solid fa-carrot text-2xl mb-2 text-green-500"></i><br>Ürün Yönetimi
+                </button>
+                <button onclick="switchAdminTab('users')" class="flex-1 bg-white p-4 rounded-xl shadow hover:shadow-lg transition text-center border-l-4 border-red-500">
+                    <i class="fa-solid fa-users text-2xl mb-2 text-red-500"></i><br>Kullanıcılar
+                </button>
+            </div>
+
+            <div id="admin-orders" class="admin-tab-content">
+                <h3 class="text-lg font-bold mb-4">Bekleyen Siparişler</h3>
+                <div id="admin-order-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    </div>
+            </div>
+
+            <div id="admin-products" class="admin-tab-content hidden">
+                <div class="bg-white p-6 rounded-xl shadow mb-6">
+                    <h3 class="text-lg font-bold mb-4">Yeni Ürün Ekle</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" id="prod-name" placeholder="Ürün Adı (Örn: Tost)" class="border p-2 rounded">
+                        <input type="number" id="prod-price" placeholder="Fiyat (TL)" class="border p-2 rounded">
+                        <input type="text" id="prod-img" placeholder="Resim URL (http://...)" class="border p-2 rounded">
+                    </div>
+                    <button onclick="addProduct()" class="mt-4 bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 w-full md:w-auto">
+                        <i class="fa-solid fa-plus"></i> Ekle
+                    </button>
+                </div>
+                <div id="admin-product-list" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    </div>
+            </div>
+
+            <div id="admin-users" class="admin-tab-content hidden">
+                <div class="bg-white rounded-xl shadow overflow-hidden">
+                    <table class="min-w-full leading-normal">
+                        <thead>
+                            <tr>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Ad Soyad</th>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">E-posta</th>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Durum</th>
+                                <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody id="user-list-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="user-panel" class="hidden flex-1 container mx-auto p-4 flex flex-col md:flex-row gap-6">
+            
+            <div class="flex-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">Menü</h2>
+                    <span class="text-sm bg-orange-100 text-orange-800 py-1 px-2 rounded-full">Canlı Menü</span>
+                </div>
+                <div id="menu-grid" class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    </div>
+            </div>
+
+            <div class="w-full md:w-96">
+                <div class="bg-white rounded-2xl shadow-lg p-6 sticky top-24">
+                    <h2 class="text-xl font-bold mb-4 border-b pb-2 flex justify-between">
+                        Sepetim <i class="fa-solid fa-basket-shopping text-orange-500"></i>
+                    </h2>
+                    
+                    <div id="cart-items" class="space-y-3 mb-4 max-h-60 overflow-y-auto">
+                        <p class="text-center text-gray-400 py-4">Sepet boş</p>
+                    </div>
+
+                    <div class="border-t pt-4 space-y-3">
+                        <div class="flex justify-between text-lg font-bold">
+                            <span>Toplam:</span>
+                            <span id="cart-total" class="text-orange-600">0 TL</span>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Teslim Alma Saati</label>
+                            <input type="time" id="order-time" class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-600 mb-1">Notunuz</label>
+                            <textarea id="order-note" rows="2" placeholder="Örn: Ketçap olmasın..." class="w-full border rounded p-2 text-sm focus:outline-none focus:border-orange-500"></textarea>
+                        </div>
+
+                        <button onclick="placeOrder()" id="btn-place-order" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-xl transition shadow-lg disabled:opacity-50">
+                            Siparişi Tamamla
+                        </button>
+                    </div>
+                </div>
+
+                <div id="active-order-card" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-4 hidden">
+                    <h3 class="font-bold text-blue-800 mb-2"><i class="fa-solid fa-clock"></i> Sipariş Durumu</h3>
+                    <div class="text-center py-2">
+                        <span class="block text-4xl font-bold text-blue-600" id="user-queue-no">#0</span>
+                        <span class="text-sm text-blue-500">Sıra Numaranız</span>
+                    </div>
+                    <p class="text-xs text-center text-gray-500 mt-2">Siparişiniz alındı, hazırlanıyor.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- 1. FIREBASE KURULUMU ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-analytics.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, setDoc, deleteDoc, onSnapshot, query, where, updateDoc, getDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA42SzDehInH54ZFbI5QiFb6cnTSPJIB1A",
+            authDomain: "kartin-24cd8.firebaseapp.com",
+            projectId: "kartin-24cd8",
+            storageBucket: "kartin-24cd8.firebasestorage.app",
+            messagingSenderId: "784309817020",
+            appId: "1:784309817020:web:5b48c13d3828e9e4078ab9",
+            measurementId: "G-4WWTB97BZ3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        // Admin Maili (Sabit)
+        const ADMIN_EMAIL = "beratyilldirimm@gmail.com";
+
+        // Global Değişkenler
+        let currentUser = null;
+        let cart = [];
+        let products = [];
+        
+        // --- 2. YARDIMCI FONKSİYONLAR ---
+        
+        // Element Göster/Gizle
+        window.show = (id) => document.getElementById(id).classList.remove('hidden');
+        window.hide = (id) => document.getElementById(id).classList.add('hidden');
+        
+        // --- 3. AUTHENTICATION ---
+
+        window.signInWithGoogle = async () => {
+            const kvkkCheck = document.getElementById('kvkk-check');
+            if (!kvkkCheck.checked) {
+                alert("Lütfen KVKK metnini onaylayın.");
+                return;
+            }
+
+            const provider = new GoogleAuthProvider();
+            try {
+                const result = await signInWithPopup(auth, provider);
+                // Giriş başarılı, onAuthStateChanged tetiklenecek
+            } catch (error) {
+                console.error(error);
+                alert("Giriş sırasında hata: " + error.message);
+            }
+        };
+
+        window.logout = () => {
+            signOut(auth).then(() => {
+                window.location.reload();
+            });
+        };
+
+        // Kullanıcı Durum Takibi
+        onAuthStateChanged(auth, async (user) => {
+            hide('loading');
+            if (user) {
+                currentUser = user;
+                
+                // 1. Ban Kontrolü & 5 Yıl Kontrolü
+                const userRef = doc(db, "users", user.uid);
+                const userSnap = await getDoc(userRef);
+
+                if (userSnap.exists()) {
+                    const data = userSnap.data();
+                    
+                    // Banlı mı?
+                    if (data.isBanned) {
+                        alert("Bu hesaba erişim engellenmiştir (BAN).");
+                        await signOut(auth);
+                        return;
+                    }
+
+                    // 5 Yıl Dolmuş mu?
+                    const createdDate = data.createdAt ? data.createdAt.toDate() : new Date();
+                    const diffYears = (new Date() - createdDate) / (1000 * 60 * 60 * 24 * 365);
+                    if (diffYears >= 5) {
+                        // Hesabı sil (Veritabanından)
+                        await deleteDoc(userRef);
+                        alert("Hesabınızın süresi (5 yıl) dolduğu için silinmiştir.");
+                        await signOut(auth);
+                        return;
+                    }
+                } else {
+                    // Yeni Kullanıcı Kaydet
+                    await setDoc(userRef, {
+                        name: user.displayName,
+                        email: user.email,
+                        createdAt: new Date(),
+                        isBanned: false
+                    });
+                }
+
+                // 2. Arayüzü Ayarla
+                hide('login-screen');
+                show('app-screen');
+                document.getElementById('user-name-display').innerText = `Merhaba, ${user.displayName.split(' ')[0]}`;
+
+                if (user.email === ADMIN_EMAIL) {
+                    initAdminPanel();
+                } else {
+                    initUserPanel();
+                }
+
+            } else {
+                show('login-screen');
+                hide('app-screen');
+            }
+        });
+
+        // --- 4. KULLANICI FONKSİYONLARI ---
+
+        function initUserPanel() {
+            show('user-panel');
+            hide('admin-panel');
+            
+            // Ürünleri Dinle
+            const q = query(collection(db, "products"));
+            onSnapshot(q, (snapshot) => {
+                products = [];
+                const grid = document.getElementById('menu-grid');
+                grid.innerHTML = "";
+                
+                snapshot.forEach(doc => {
+                    const p = { id: doc.id, ...doc.data() };
+                    products.push(p);
+                    
+                    const item = document.createElement('div');
+                    item.className = "bg-white rounded-xl shadow hover:shadow-lg transition overflow-hidden group";
+                    item.innerHTML = `
+                        <div class="h-40 overflow-hidden relative">
+                            <img src="${p.image || 'https://via.placeholder.com/300'}" class="w-full h-full object-cover group-hover:scale-110 transition duration-300">
+                        </div>
+                        <div class="p-4">
+                            <h3 class="font-bold text-gray-800">${p.name}</h3>
+                            <div class="flex justify-between items-center mt-2">
+                                <span class="text-orange-600 font-bold text-lg">${p.price} TL</span>
+                                <button onclick="addToCart('${p.id}')" class="bg-orange-100 text-orange-600 w-8 h-8 rounded-full hover:bg-orange-600 hover:text-white transition flex items-center justify-center">
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(item);
+                });
+            });
+
+            // Aktif Siparişimi Dinle
+            const orderQ = query(collection(db, "orders"), where("userId", "==", currentUser.uid));
+            onSnapshot(orderQ, (snapshot) => {
+                const card = document.getElementById('active-order-card');
+                if (!snapshot.empty) {
+                    show('active-order-card');
+                    snapshot.forEach(d => {
+                        const data = d.data();
+                        document.getElementById('user-queue-no').innerText = `#${data.queueNumber}`;
+                    });
+                    // Sipariş varken yeni sipariş butonunu kapat
+                    document.getElementById('btn-place-order').disabled = true;
+                    document.getElementById('btn-place-order').innerText = "Aktif Sipariş Var";
+                } else {
+                    hide('active-order-card');
+                    document.getElementById('btn-place-order').disabled = false;
+                    document.getElementById('btn-place-order').innerText = "Siparişi Tamamla";
+                }
+            });
+        }
+
+        window.addToCart = (prodId) => {
+            const prod = products.find(p => p.id === prodId);
+            cart.push(prod);
+            renderCart();
+        };
+
+        window.removeFromCart = (index) => {
+            cart.splice(index, 1);
+            renderCart();
+        };
+
+        function renderCart() {
+            const container = document.getElementById('cart-items');
+            const totalEl = document.getElementById('cart-total');
+            container.innerHTML = "";
+            let total = 0;
+
+            if (cart.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-400 py-4">Sepet boş</p>';
+                totalEl.innerText = "0 TL";
+                return;
+            }
+
+            cart.forEach((item, index) => {
+                total += parseFloat(item.price);
+                const row = document.createElement('div');
+                row.className = "flex justify-between items-center bg-gray-50 p-2 rounded";
+                row.innerHTML = `
+                    <div class="text-sm">
+                        <span class="font-semibold block">${item.name}</span>
+                        <span class="text-gray-500">${item.price} TL</span>
+                    </div>
+                    <button onclick="removeFromCart(${index})" class="text-red-500 hover:text-red-700">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                `;
+                container.appendChild(row);
+            });
+            totalEl.innerText = `${total} TL`;
+        }
+
+        window.placeOrder = async () => {
+            if (cart.length === 0) return alert("Sepetiniz boş!");
+            
+            const time = document.getElementById('order-time').value;
+            const note = document.getElementById('order-note').value;
+            if (!time) return alert("Lütfen teslim alma saati seçin.");
+
+            // Yükleniyor...
+            const btn = document.getElementById('btn-place-order');
+            btn.disabled = true;
+            btn.innerText = "İşleniyor...";
+
+            try {
+                // 1. Bugünün Tarihi (Sıra sıfırlama için)
+                const todayStr = new Date().toISOString().split('T')[0];
+
+                // 2. Bugünün son sıra numarasını bulmak için sorgu
+                // İstemci tarafında mükemmel bir atomic counter zordur ama bu yöntem kantin için yeterlidir.
+                const qToday = query(collection(db, "orders"), where("dateStr", "==", todayStr));
+                const snap = await getDocs(qToday);
+                let maxQueue = 0;
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    if (d.queueNumber > maxQueue) maxQueue = d.queueNumber;
+                });
+                const newQueue = maxQueue + 1;
+
+                // 3. Siparişi Kaydet
+                await addDoc(collection(db, "orders"), {
+                    userId: currentUser.uid,
+                    userName: currentUser.displayName,
+                    items: cart,
+                    totalPrice: cart.reduce((a, b) => a + parseFloat(b.price), 0),
+                    pickupTime: time,
+                    note: note,
+                    queueNumber: newQueue,
+                    dateStr: todayStr,
+                    createdAt: new Date()
+                });
+
+                // 4. Temizlik
+                cart = [];
+                renderCart();
+                document.getElementById('order-time').value = "";
+                document.getElementById('order-note').value = "";
+                alert("Siparişiniz alındı! Sıra Numaranız: " + newQueue);
+
+            } catch (error) {
+                console.error(error);
+                alert("Sipariş oluşturulamadı: " + error.message);
+                btn.disabled = false;
+                btn.innerText = "Siparişi Tamamla";
+            }
+        };
+
+        // --- 5. ADMIN FONKSİYONLARI ---
+
+        function initAdminPanel() {
+            show('admin-panel');
+            hide('user-panel');
+            
+            // Siparişleri Dinle (Tarihe göre sıralı olmalı ama Firestore index yoksa hata verebilir, şimdilik client sort yaparız)
+            onSnapshot(collection(db, "orders"), (snapshot) => {
+                const list = document.getElementById('admin-order-list');
+                list.innerHTML = "";
+                if(snapshot.empty) {
+                    list.innerHTML = "<p class='text-gray-500'>Bekleyen sipariş yok.</p>";
+                    return;
+                }
+
+                snapshot.forEach(docSnap => {
+                    const order = { id: docSnap.id, ...docSnap.data() };
+                    const itemsHtml = order.items.map(i => `<span class="text-xs bg-gray-200 px-1 rounded">${i.name}</span>`).join(" ");
+                    
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-4 rounded-xl shadow border-l-4 border-blue-500 relative";
+                    card.innerHTML = `
+                        <div class="absolute top-2 right-2 bg-blue-100 text-blue-800 font-bold px-2 py-1 rounded text-lg">#${order.queueNumber}</div>
+                        <h4 class="font-bold text-lg">${order.userName}</h4>
+                        <p class="text-sm text-gray-600 mb-2"><i class="fa-regular fa-clock"></i> ${order.pickupTime}</p>
+                        <div class="mb-2 flex flex-wrap gap-1">${itemsHtml}</div>
+                        ${order.note ? `<p class="text-xs text-red-500 bg-red-50 p-1 mb-2 rounded">Not: ${order.note}</p>` : ''}
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="font-bold">${order.totalPrice} TL</span>
+                            <button onclick="deliverOrder('${order.id}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm shadow">
+                                <i class="fa-solid fa-check"></i> Teslim Et
+                            </button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            });
+
+            // Ürünleri Listele (Admin Görünümü)
+            const qProd = query(collection(db, "products"));
+            onSnapshot(qProd, (snapshot) => {
+                const list = document.getElementById('admin-product-list');
+                list.innerHTML = "";
+                snapshot.forEach(docSnap => {
+                    const p = { id: docSnap.id, ...docSnap.data() };
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-2 rounded shadow text-center relative group";
+                    item.innerHTML = `
+                        <img src="${p.image}" class="h-24 w-full object-cover rounded mb-2">
+                        <p class="font-bold text-sm">${p.name}</p>
+                        <p class="text-xs text-gray-500">${p.price} TL</p>
+                        <button onclick="deleteProduct('${p.id}')" class="absolute top-1 right-1 bg-red-500 text-white w-6 h-6 rounded-full opacity-0 group-hover:opacity-100 transition text-xs">X</button>
+                    `;
+                    list.appendChild(item);
+                });
+            });
+
+            // Kullanıcıları Listele
+            const qUsers = query(collection(db, "users"));
+            onSnapshot(qUsers, (snapshot) => {
+                const tbody = document.getElementById('user-list-body');
+                tbody.innerHTML = "";
+                snapshot.forEach(docSnap => {
+                    const u = { id: docSnap.id, ...docSnap.data() };
+                    // Adminin kendini banlamasını engelle
+                    if(u.email === ADMIN_EMAIL) return;
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">${u.name}</td>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">${u.email}</td>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                            <span class="relative inline-block px-3 py-1 font-semibold leading-tight ${u.isBanned ? 'text-red-900' : 'text-green-900'}">
+                                <span aria-hidden class="absolute inset-0 ${u.isBanned ? 'bg-red-200' : 'bg-green-200'} opacity-50 rounded-full"></span>
+                                <span class="relative">${u.isBanned ? 'BANLI' : 'Aktif'}</span>
+                            </span>
+                        </td>
+                        <td class="px-5 py-5 border-b border-gray-200 bg-white text-sm">
+                            <button onclick="toggleBan('${u.id}', ${u.isBanned})" class="text-xs border px-2 py-1 rounded hover:bg-gray-100">
+                                ${u.isBanned ? 'Banı Kaldır' : 'Banla'}
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            });
+        }
+
+        window.switchAdminTab = (tabId) => {
+            document.querySelectorAll('.admin-tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`admin-${tabId}`).classList.remove('hidden');
+        };
+
+        // Ürün Ekleme
+        window.addProduct = async () => {
+            const name = document.getElementById('prod-name').value;
+            const price = document.getElementById('prod-price').value;
+            const img = document.getElementById('prod-img').value;
+
+            if(!name || !price) return alert("Eksik bilgi.");
+
+            try {
+                await addDoc(collection(db, "products"), {
+                    name: name,
+                    price: Number(price),
+                    image: img || 'https://via.placeholder.com/150'
+                });
+                alert("Ürün eklendi.");
+                document.getElementById('prod-name').value = "";
+                document.getElementById('prod-price').value = "";
+                document.getElementById('prod-img').value = "";
+            } catch (e) { alert(e.message); }
+        };
+
+        window.deleteProduct = async (id) => {
+            if(confirm("Silmek istediğine emin misin?")) {
+                await deleteDoc(doc(db, "products", id));
+            }
+        };
+
+        // Sipariş Teslimi (Veritabanından Siler - Yer tasarrufu)
+        window.deliverOrder = async (orderId) => {
+            try {
+                await deleteDoc(doc(db, "orders", orderId));
+                // Toast mesaj eklenebilir ama sade olsun diye alert kullanmıyoruz, listeden zaten kaybolacak.
+            } catch (e) { console.error(e); }
+        };
+
+        // Ban İşlemi
+        window.toggleBan = async (uid, currentStatus) => {
+            if(confirm(currentStatus ? "Banı kaldırılsın mı?" : "Kullanıcı banlansın mı? Bu kişi artık giriş yapamayacak.")) {
+                await updateDoc(doc(db, "users", uid), {
+                    isBanned: !currentStatus
+                });
+            }
+        };
+
+        // Fonksiyonları window objesine ata (Modül olduğu için)
+        window.initAdminPanel = initAdminPanel;
+    </script>
+</body>
+</html>
